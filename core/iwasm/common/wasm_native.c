@@ -18,6 +18,9 @@
 #if WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0
 #include "wasi_nn_host.h"
 #endif
+#if WASM_ENABLE_WASI_WEBGPU != 0
+#include "wasi_webgpu.h"
+#endif
 
 static NativeSymbolsList g_native_symbols_list = NULL;
 
@@ -594,6 +597,13 @@ wasm_native_init()
             native_symbols, n_native_symbols))
         goto fail;
 #endif /* WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
+
+#if WASM_ENABLE_WASI_WEBGPU != 0
+    n_native_symbols = get_wasi_webgpu_export_apis(&native_symbols);
+    if (n_native_symbols > 0
+        && !wasm_native_register_natives("wasi_webgpu", native_symbols, n_native_symbols))
+        goto fail;
+#endif /* WASM_ENABLE_WASI_WEBGPU != 0 */
 
 #if WASM_ENABLE_QUICK_AOT_ENTRY != 0
     if (!quick_aot_entry_init()) {

@@ -1,0 +1,18 @@
+[package]
+name = "wasi-webgpu-rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "wasi_webgpu_rust"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+wgpu = "24.0.0"
+pollster = "0.3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = false

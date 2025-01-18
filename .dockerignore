@@ -14,3 +14,6 @@ core/deps
 !core/deps/tensorflow-src
 samples
 tests
+
+# wasi-webgpu
+core/iwasm/libraries/wasi-webgpu/test/Dockerfile
