@@ -16,95 +16,30 @@ add_compile_definitions(
   $<$<CONFIG:Release>:NN_LOG_LEVEL=2>
 )
 
-#
-# wasi-webgpu backends
-#
-# - tflite
-if(WAMR_BUILD_WASI_WEBGPU_TFLITE EQUAL 1)
-  find_package(tensorflow_lite REQUIRED)
+# - wgpunative
+
+if(WAMR_BUILD_WASI_WEBGPU_WGPU EQUAL 1)
+  find_package(wgpunative REQUIRED)
 
   add_library(
-    wasi_webgpu_tflite
+    wasi_webgpu_wgpunative
     SHARED
-      ${WASI_WEBGPU_ROOT}/src/wasi_webgpu_tensorflowlite.cpp
+      ${WASI_WEBGPU_ROOT}/src/wasi_webgpu_wgpunative.c
   )
 
   target_include_directories(
-    wasi_webgpu_tflite
+    wasi_webgpu_wgpunative
     PUBLIC
-      ${tensorflow_lite_SOURCE_DIR}
+        "${WGPUNATIVE_SOURCE_DIR}/ffi"
+        "${WGPUNATIVE_SOURCE_DIR}/ffi/webgpu-headers"
   )
 
   target_link_libraries(
-    wasi_webgpu_tflite
+    wasi_webgpu_wgpunative
     PUBLIC
       libiwasm
-      tensorflow-lite
+      wgpu-native
   )
 
-  install(TARGETS wasi_webgpu_tflite DESTINATION lib)
-endif()
-
-# - openvino
-if(WAMR_BUILD_WASI_WEBGPU_OPENVINO EQUAL 1)
-  if(NOT DEFINED ENV{OpenVINO_DIR})
-    message(FATAL_ERROR
-        "OpenVINO_DIR is not defined. "
-        "Please follow https://docs.openvino.ai/2024/get-started/install-openvino.html,"
-        "install openvino, and set environment variable OpenVINO_DIR."
-        "Like OpenVINO_DIR=/usr/lib/openvino-2023.2/ cmake ..."
-        "Or OpenVINO_DIR=/opt/intel/openvino/ cmake ..."
-    )
-  endif()
-
-  list(APPEND CMAKE_MODULE_PATH $ENV{OpenVINO_DIR})
-  # Find OpenVINO
-  find_package(OpenVINO REQUIRED COMPONENTS Runtime)
-
-  add_library(
-    wasi_webgpu_openvino
-    SHARED
-      ${WASI_WEBGPU_ROOT}/src/wasi_webgpu_openvino.c
-  )
-
-  target_link_libraries(
-    wasi_webgpu_openvino
-    PUBLIC
-      libiwasm
-      openvino::runtime
-      openvino::runtime::c
-  )
-
-  install(TARGETS wasi_webgpu_openvino DESTINATION lib)
-endif()
-
-# - llamacpp
-
-if(WAMR_BUILD_WASI_WEBGPU_LLAMACPP EQUAL 1)
-  find_package(cjson REQUIRED)
-  find_package(llamacpp REQUIRED)
-
-  add_library(
-    wasi_webgpu_llamacpp
-    SHARED
-      ${WASI_WEBGPU_ROOT}/src/wasi_webgpu_llamacpp.c
-  )
-
-  target_include_directories(
-    wasi_webgpu_llamacpp
-    PUBLIC
-      ${cjson_SOURCE_DIR}
-  )
-
-  target_link_libraries(
-    wasi_webgpu_llamacpp
-    PUBLIC
-      libiwasm
-      cjson
-      common
-      ggml
-      llama
-  )
-
-  install(TARGETS wasi_webgpu_llamacpp DESTINATION lib)
+  install(TARGETS wasi_webgpu_wgpunative DESTINATION lib)
 endif()
