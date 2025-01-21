@@ -15,76 +15,8 @@
 #include <stdint.h>
 #include "wasi_webgpu_types.h"
 
-/**
- * @brief Load an opaque sequence of bytes to use for inference.
- *
- * @param builder   Model builder.
- * @param encoding  Model encoding.
- * @param target    Execution target.
- * @param g         Graph.
- * @return wasi_webgpu_error    Execution status.
- */
 wasi_webgpu_error
-load(graph_builder_array *builder, graph_encoding encoding,
-     execution_target target, graph *g)
-    __attribute__((import_module("wasi_webgpu")));
-
-wasi_webgpu_error
-load_by_name(const char *name, graph *g)
-    __attribute__((import_module("wasi_webgpu")));
-
-/**
- * INFERENCE
- *
- */
-
-/**
- * @brief Create an execution instance of a loaded graph.
- *
- * @param g         Graph.
- * @param ctx       Execution context.
- * @return wasi_webgpu_error    Execution status.
- */
-wasi_webgpu_error
-init_execution_context(graph g, graph_execution_context *ctx)
-    __attribute__((import_module("wasi_webgpu")));
-
-/**
- * @brief Define the inputs to use for inference.
- *
- * @param ctx       Execution context.
- * @param index     Input tensor index.
- * @param tensor    Input tensor.
- * @return wasi_webgpu_error    Execution status.
- */
-wasi_webgpu_error
-set_input(graph_execution_context ctx, uint32_t index, tensor *tensor)
-    __attribute__((import_module("wasi_webgpu")));
-
-/**
- * @brief Compute the inference on the given inputs.
- *
- * @param ctx       Execution context.
- * @return wasi_webgpu_error    Execution status.
- */
-wasi_webgpu_error
-compute(graph_execution_context ctx) __attribute__((import_module("wasi_webgpu")));
-
-/**
- * @brief Extract the outputs after inference.
- *
- * @param ctx                   Execution context.
- * @param index                 Output tensor index.
- * @param output_tensor         Buffer where output tensor with index `index` is
- * copied.
- * @param output_tensor_size    Pointer to `output_tensor` maximum size.
- *                              After the function call it is updated with the
- * copied number of bytes.
- * @return wasi_webgpu_error                Execution status.
- */
-wasi_webgpu_error
-get_output(graph_execution_context ctx, uint32_t index,
-           tensor_data output_tensor, uint32_t *output_tensor_size)
+do_something(uint32_t some_var)
     __attribute__((import_module("wasi_webgpu")));
 
 #endif

@@ -10,8 +10,7 @@
 #include "wasm_export.h"
 
 typedef struct {
-    bool is_model_loaded;
-    graph_encoding backend;
+    backend_type backend;
     void *backend_ctx;
 } WASIWEBGPUContext;
 

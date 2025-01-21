@@ -20,16 +20,26 @@ struct wasi_webgpu_wgpunative_config {
     // TODO
 };
 
+struct WgpuContext {
+    // TODO
+
+    WGPUInstance instance;
+};
+
 __attribute__((visibility("default"))) wasi_webgpu_error
 init_backend(void **ctx)
 {
     // TODO
+
+    return success;
 }
 
 __attribute__((visibility("default"))) wasi_webgpu_error
 deinit_backend(void *ctx)
 {
     // TODO
+
+    return success;
 }
 
-// TODO
+// TODO: remaining functions

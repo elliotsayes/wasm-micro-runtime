@@ -21,9 +21,7 @@
 #include "wasm_export.h"
 
 #define HASHMAP_INITIAL_SIZE 20
-#define TFLITE_BACKEND_LIB "libwasi_webgpu_tflite.so"
-#define OPENVINO_BACKEND_LIB "libwasi_webgpu_openvino.so"
-#define LLAMACPP_BACKEND_LIB "libwasi_webgpu_llamacpp.so"
+#define WGPUNATIVE_BACKEND_LIB_PREFIX "libwasi_webgpu_wgpunative"
 
 /* Global variables */
 struct backends_api_functions {
@@ -71,6 +69,29 @@ key_destroy_func(void *key1)
     /* key type is wasm_module_inst_t*. do nothing */
 }
 
+/* Get filename (with extension) of a given library name based on OS */
+static bool
+get_backend_lib_filename(char *lib_name, char *filename)
+{
+#if defined(_WIN32)
+    // Windows uses .dll
+    const char *extension = "dll";
+#elif defined(__APPLE__)
+    // macOS uses .dylib
+    const char *extension = "dylib";
+#else
+    // Linux uses .so
+    const char *extension = "so";
+#endif
+
+    if (!lib_name || !filename)
+        return false;
+
+    snprintf(filename, strlen(lib_name) + strlen(extension) + 1, 
+             "%s.%s", lib_name, extension);
+    return true;
+}
+
 static void
 wasi_webgpu_ctx_destroy(WASIWEBGPUContext *wasi_webgpu_ctx)
 {
@@ -82,7 +103,6 @@ wasi_webgpu_ctx_destroy(WASIWEBGPUContext *wasi_webgpu_ctx)
         return;
     }
     NN_DBG_PRINTF("Freeing wasi-webgpu");
-    NN_DBG_PRINTF("-> is_model_loaded: %d", wasi_webgpu_ctx->is_model_loaded);
     NN_DBG_PRINTF("-> current_encoding: %d", wasi_webgpu_ctx->backend);
 
     /* deinit() the backend */
@@ -172,65 +192,6 @@ wasi_webgpu_destroy()
     }
 }
 
-/* Utils */
-static wasi_webgpu_error
-is_model_initialized(WASIWEBGPUContext *wasi_webgpu_ctx)
-{
-    if (!wasi_webgpu_ctx->is_model_loaded) {
-        NN_ERR_PRINTF("Model not initialized.");
-        return runtime_error;
-    }
-    return success;
-}
-
-/*
- *TODO: choose a proper backend based on
- * - hardware
- * - model file format
- * - on device ML framework
- */
-static graph_encoding
-choose_a_backend()
-{
-    void *handle;
-
-    handle = dlopen(LLAMACPP_BACKEND_LIB, RTLD_LAZY);
-    if (handle) {
-        NN_INFO_PRINTF("Using llama.cpp backend");
-        dlclose(handle);
-        return ggml;
-    }
-
-#ifndef NDEBUG
-    NN_WARN_PRINTF("%s", dlerror());
-#endif
-
-    handle = dlopen(OPENVINO_BACKEND_LIB, RTLD_LAZY);
-    if (handle) {
-        NN_INFO_PRINTF("Using openvino backend");
-        dlclose(handle);
-        return openvino;
-    }
-
-#ifndef NDEBUG
-    NN_WARN_PRINTF("%s", dlerror());
-#endif
-
-    handle = dlopen(TFLITE_BACKEND_LIB, RTLD_LAZY);
-    if (handle) {
-        NN_INFO_PRINTF("Using tflite backend");
-        dlclose(handle);
-        return tensorflowlite;
-    }
-
-#ifndef NDEBUG
-    NN_WARN_PRINTF("%s", dlerror());
-#endif
-
-    NN_WARN_PRINTF("No backend found");
-    return unknown_backend;
-}
-
 static bool
 register_backend(void *handle, api_function *functions)
 {
@@ -249,56 +210,7 @@ register_backend(void *handle, api_function *functions)
     }
     functions->deinit = deinit;
 
-    LOAD load = (LOAD)dlsym(handle, "load");
-    if (!load) {
-        NN_WARN_PRINTF("load() not found");
-        return false;
-    }
-    functions->load = load;
-
-    LOAD_BY_NAME load_by_name = (LOAD_BY_NAME)dlsym(handle, "load_by_name");
-    if (!load_by_name) {
-        NN_WARN_PRINTF("load_by_name() not found");
-        return false;
-    }
-    functions->load_by_name = load_by_name;
-
-    LOAD_BY_NAME_WITH_CONFIG load_by_name_with_config =
-        (LOAD_BY_NAME_WITH_CONFIG)dlsym(handle, "load_by_name_with_config");
-    if (!load_by_name_with_config) {
-        NN_WARN_PRINTF("load_by_name_with_config() not found");
-        // since only llama.cpp backend need to support this function
-    }
-    functions->load_by_name_with_config = load_by_name_with_config;
-
-    INIT_EXECUTION_CONTEXT init_execution_context =
-        (INIT_EXECUTION_CONTEXT)dlsym(handle, "init_execution_context");
-    if (!init_execution_context) {
-        NN_WARN_PRINTF("init_execution_context() not found");
-        return false;
-    }
-    functions->init_execution_context = init_execution_context;
-
-    SET_INPUT set_input = (SET_INPUT)dlsym(handle, "set_input");
-    if (!set_input) {
-        NN_WARN_PRINTF("set_input() not found");
-        return false;
-    }
-    functions->set_input = set_input;
-
-    COMPUTE compute = (COMPUTE)dlsym(handle, "compute");
-    if (!compute) {
-        NN_WARN_PRINTF("compute() not found");
-        return false;
-    }
-    functions->compute = compute;
-
-    GET_OUTPUT get_output = (GET_OUTPUT)dlsym(handle, "get_output");
-    if (!get_output) {
-        NN_WARN_PRINTF("get_output() not found");
-        return false;
-    }
-    functions->get_output = get_output;
+    // TODO: WebGPU functions
 
     return true;
 }
@@ -325,358 +237,13 @@ prepare_backend(const char *lib_name, struct backends_api_functions *backend)
     return true;
 }
 
-static const char *
-graph_encoding_to_backend_lib_name(graph_encoding encoding)
-{
-    switch (encoding) {
-        case openvino:
-            return OPENVINO_BACKEND_LIB;
-        case tensorflowlite:
-            return TFLITE_BACKEND_LIB;
-        case ggml:
-            return LLAMACPP_BACKEND_LIB;
-        default:
-            return NULL;
-    }
-}
-
 static bool
-detect_and_load_backend(graph_encoding backend_hint,
-                        struct backends_api_functions *backends,
-                        graph_encoding *loaded_backend)
+detect_and_load_backend(struct backends_api_functions *backends)
 {
-    if (backend_hint > autodetect)
-        return false;
+    char backend_lib_name[128];
+    get_backend_lib_filename(WGPUNATIVE_BACKEND_LIB_PREFIX, backend_lib_name);
 
-    if (backend_hint == autodetect)
-        backend_hint = choose_a_backend();
-
-    if (backend_hint == unknown_backend)
-        return false;
-
-    *loaded_backend = backend_hint;
-
-    /* if already loaded */
-    if (lookup[backend_hint].backend_handle)
-        return true;
-
-    const char *backend_lib_name =
-        graph_encoding_to_backend_lib_name(backend_hint);
-    if (!backend_lib_name)
-        return false;
-
-    return prepare_backend(backend_lib_name, backends + backend_hint);
-}
-
-/* WASI-WEBGPU implementation */
-
-#if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-wasi_webgpu_error
-wasi_webgpu_load(wasm_exec_env_t exec_env, graph_builder_wasm *builder,
-             uint32_t builder_wasm_size, graph_encoding encoding,
-             execution_target target, graph *g)
-#else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-wasi_webgpu_error
-wasi_webgpu_load(wasm_exec_env_t exec_env, graph_builder_array_wasm *builder,
-             graph_encoding encoding, execution_target target, graph *g)
-#endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
-{
-    NN_DBG_PRINTF("[WASI WEBGPU] LOAD [encoding=%d, target=%d]...", encoding,
-                  target);
-
-    wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
-    if (!instance)
-        return runtime_error;
-
-    wasi_webgpu_error res;
-    graph_builder_array builder_native = { 0 };
-#if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-    if (success
-        != (res = graph_builder_array_app_native(
-                instance, builder, builder_wasm_size, &builder_native)))
-        return res;
-#else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-    if (success
-        != (res = graph_builder_array_app_native(instance, builder,
-                                                 &builder_native)))
-        return res;
-#endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
-
-    if (!wasm_runtime_validate_native_addr(instance, g,
-                                           (uint64)sizeof(graph))) {
-        NN_ERR_PRINTF("graph is invalid");
-        res = invalid_argument;
-        goto fail;
-    }
-
-    graph_encoding loaded_backend = autodetect;
-    if (!detect_and_load_backend(encoding, lookup, &loaded_backend)) {
-        res = invalid_encoding;
-        NN_ERR_PRINTF("load backend failed");
-        goto fail;
-    }
-
-    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
-    wasi_webgpu_ctx->backend = loaded_backend;
-
-    /* init() the backend */
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init, res,
-                      &wasi_webgpu_ctx->backend_ctx);
-    if (res != success)
-        goto fail;
-
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, load, res, wasi_webgpu_ctx->backend_ctx,
-                      &builder_native, encoding, target, g);
-    if (res != success)
-        goto fail;
-
-    wasi_webgpu_ctx->is_model_loaded = true;
-
-fail:
-    // XXX: Free intermediate structure pointers
-    if (builder_native.buf)
-        wasm_runtime_free(builder_native.buf);
-
-    return res;
-}
-
-wasi_webgpu_error
-wasi_webgpu_load_by_name(wasm_exec_env_t exec_env, char *name, uint32_t name_len,
-                     graph *g)
-{
-    wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
-    if (!instance) {
-        return runtime_error;
-    }
-
-    if (!wasm_runtime_validate_native_addr(instance, name, name_len)) {
-        NN_ERR_PRINTF("name is invalid");
-        return invalid_argument;
-    }
-
-    if (!wasm_runtime_validate_native_addr(instance, g,
-                                           (uint64)sizeof(graph))) {
-        NN_ERR_PRINTF("graph is invalid");
-        return invalid_argument;
-    }
-
-    if (name_len == 0 || name[name_len] != '\0') {
-        NN_ERR_PRINTF("Invalid filename");
-        return invalid_argument;
-    }
-
-    NN_DBG_PRINTF("[WASI WEBGPU] LOAD_BY_NAME %s...", name);
-
-    graph_encoding loaded_backend = autodetect;
-    if (!detect_and_load_backend(autodetect, lookup, &loaded_backend)) {
-        NN_ERR_PRINTF("load backend failed");
-        return invalid_encoding;
-    }
-
-    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
-    wasi_webgpu_ctx->backend = loaded_backend;
-
-    wasi_webgpu_error res;
-    /* init() the backend */
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init, res,
-                      &wasi_webgpu_ctx->backend_ctx);
-    if (res != success)
-        return res;
-
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, load_by_name, res,
-                      wasi_webgpu_ctx->backend_ctx, name, name_len, g);
-    if (res != success)
-        return res;
-
-    wasi_webgpu_ctx->backend = loaded_backend;
-    wasi_webgpu_ctx->is_model_loaded = true;
-    return success;
-}
-
-wasi_webgpu_error
-wasi_webgpu_load_by_name_with_config(wasm_exec_env_t exec_env, char *name,
-                                 int32_t name_len, char *config,
-                                 int32_t config_len, graph *g)
-{
-    wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
-    if (!instance) {
-        return runtime_error;
-    }
-
-    if (!wasm_runtime_validate_native_addr(instance, name, name_len)) {
-        NN_ERR_PRINTF("name is invalid");
-        return invalid_argument;
-    }
-
-    if (!wasm_runtime_validate_native_addr(instance, g,
-                                           (uint64)sizeof(graph))) {
-        NN_ERR_PRINTF("graph is invalid");
-        return invalid_argument;
-    }
-
-    if (name_len == 0 || name[name_len] != '\0') {
-        NN_ERR_PRINTF("Invalid filename");
-        return invalid_argument;
-    }
-
-    if (!config || config_len == 0 || config[config_len] != '\0') {
-        NN_ERR_PRINTF("Invalid config");
-        return invalid_argument;
-    }
-
-    NN_DBG_PRINTF("[WASI WEBGPU] LOAD_BY_NAME_WITH_CONFIG %s %s...", name, config);
-
-    graph_encoding loaded_backend = autodetect;
-    if (!detect_and_load_backend(autodetect, lookup, &loaded_backend)) {
-        NN_ERR_PRINTF("load backend failed");
-        return invalid_encoding;
-    }
-
-    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
-    wasi_webgpu_ctx->backend = loaded_backend;
-
-    wasi_webgpu_error res;
-    /* init() the backend */
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init, res,
-                      &wasi_webgpu_ctx->backend_ctx);
-    if (res != success)
-        return res;
-
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, load_by_name_with_config, res,
-                      wasi_webgpu_ctx->backend_ctx, name, name_len, config,
-                      config_len, g);
-    if (res != success)
-        return res;
-
-    wasi_webgpu_ctx->backend = loaded_backend;
-    wasi_webgpu_ctx->is_model_loaded = true;
-    return success;
-}
-
-wasi_webgpu_error
-wasi_webgpu_init_execution_context(wasm_exec_env_t exec_env, graph g,
-                               graph_execution_context *ctx)
-{
-    NN_DBG_PRINTF("[WASI WEBGPU] INIT_EXECUTION_CONTEXT...");
-
-    wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
-    if (!instance) {
-        return runtime_error;
-    }
-
-    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
-
-    wasi_webgpu_error res;
-    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
-        return res;
-
-    if (!wasm_runtime_validate_native_addr(
-            instance, ctx, (uint64)sizeof(graph_execution_context))) {
-        NN_ERR_PRINTF("ctx is invalid");
-        return invalid_argument;
-    }
-
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init_execution_context, res,
-                      wasi_webgpu_ctx->backend_ctx, g, ctx);
-    return res;
-}
-
-wasi_webgpu_error
-wasi_webgpu_set_input(wasm_exec_env_t exec_env, graph_execution_context ctx,
-                  uint32_t index, tensor_wasm *input_tensor)
-{
-    NN_DBG_PRINTF("[WASI WEBGPU] SET_INPUT [ctx=%d, index=%d]...", ctx, index);
-
-    wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
-    if (!instance) {
-        return runtime_error;
-    }
-
-    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
-
-    wasi_webgpu_error res;
-    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
-        return res;
-
-    tensor input_tensor_native = { 0 };
-    if (success
-        != (res = tensor_app_native(instance, input_tensor,
-                                    &input_tensor_native)))
-        return res;
-
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, set_input, res,
-                      wasi_webgpu_ctx->backend_ctx, ctx, index,
-                      &input_tensor_native);
-    // XXX: Free intermediate structure pointers
-    if (input_tensor_native.dimensions)
-        wasm_runtime_free(input_tensor_native.dimensions);
-
-    return res;
-}
-
-wasi_webgpu_error
-wasi_webgpu_compute(wasm_exec_env_t exec_env, graph_execution_context ctx)
-{
-    NN_DBG_PRINTF("[WASI WEBGPU] COMPUTE [ctx=%d]...", ctx);
-
-    wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
-    if (!instance) {
-        return runtime_error;
-    }
-
-    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
-
-    wasi_webgpu_error res;
-    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
-        return res;
-
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, compute, res,
-                      wasi_webgpu_ctx->backend_ctx, ctx);
-    return res;
-}
-
-#if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-wasi_webgpu_error
-wasi_webgpu_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
-                   uint32_t index, tensor_data output_tensor,
-                   uint32_t output_tensor_len, uint32_t *output_tensor_size)
-#else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-wasi_webgpu_error
-wasi_webgpu_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
-                   uint32_t index, tensor_data output_tensor,
-                   uint32_t *output_tensor_size)
-#endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
-{
-    NN_DBG_PRINTF("[WASI WEBGPU] GET_OUTPUT [ctx=%d, index=%d]...", ctx, index);
-
-    wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
-    if (!instance) {
-        return runtime_error;
-    }
-
-    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
-
-    wasi_webgpu_error res;
-    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
-        return res;
-
-    if (!wasm_runtime_validate_native_addr(instance, output_tensor_size,
-                                           (uint64)sizeof(uint32_t))) {
-        NN_ERR_PRINTF("output_tensor_size is invalid");
-        return invalid_argument;
-    }
-
-#if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, get_output, res,
-                      wasi_webgpu_ctx->backend_ctx, ctx, index, output_tensor,
-                      &output_tensor_len);
-    *output_tensor_size = output_tensor_len;
-#else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, get_output, res,
-                      wasi_webgpu_ctx->backend_ctx, ctx, index, output_tensor,
-                      output_tensor_size);
-#endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
-    return res;
+    return prepare_backend(backend_lib_name, backends);
 }
 
 /* Register WASI-WEBGPU in WAMR */
@@ -687,21 +254,11 @@ wasi_webgpu_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
 /* clang-format on */
 
 static NativeSymbol native_symbols_wasi_webgpu[] = {
-#if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-    REG_NATIVE_FUNC(load, "(*iii*)i"),
-    REG_NATIVE_FUNC(load_by_name, "(*i*)i"),
-    REG_NATIVE_FUNC(load_by_name_with_config, "(*i*i*)i"),
-    REG_NATIVE_FUNC(init_execution_context, "(i*)i"),
-    REG_NATIVE_FUNC(set_input, "(ii*)i"),
-    REG_NATIVE_FUNC(compute, "(i)i"),
-    REG_NATIVE_FUNC(get_output, "(ii*i*)i"),
-#else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-    REG_NATIVE_FUNC(load, "(*ii*)i"),
-    REG_NATIVE_FUNC(init_execution_context, "(i*)i"),
-    REG_NATIVE_FUNC(set_input, "(ii*)i"),
-    REG_NATIVE_FUNC(compute, "(i)i"),
-    REG_NATIVE_FUNC(get_output, "(ii**)i"),
-#endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
+    // REG_NATIVE_FUNC(load, "(*ii*)i"),
+    // REG_NATIVE_FUNC(init_execution_context, "(i*)i"),
+    // REG_NATIVE_FUNC(set_input, "(ii*)i"),
+    // REG_NATIVE_FUNC(compute, "(i)i"),
+    // REG_NATIVE_FUNC(get_output, "(ii**)i"),
 };
 
 uint32_t
