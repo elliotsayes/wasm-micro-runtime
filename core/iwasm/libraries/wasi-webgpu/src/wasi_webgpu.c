@@ -246,24 +246,157 @@ detect_and_load_backend(struct backends_api_functions *backends)
     return prepare_backend(backend_lib_name, backends);
 }
 
-/* Register WASI-WEBGPU in WAMR */
+/* WASI-WEBGPU implementation */
 
-/* clang-format off */
+#if WASM_ENABLE_WASI_WEBGPU != 0
+
+wasi_webgpu_error
+wasi_webgpu_get_gpu(wasm_exec_env_t exec_env, void **gpu)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !gpu)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, get_gpu,
+                         err, wasi_webgpu_ctx->backend_ctx, gpu);
+    return err;
+}
+
+wasi_webgpu_error
+wasi_webgpu_request_adapter(wasm_exec_env_t exec_env, void *gpu, 
+                           gpu_request_adapter_options *options, void **adapter)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !gpu || !adapter)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, request_adapter,
+                         err, wasi_webgpu_ctx->backend_ctx, gpu, options, adapter);
+    return err;
+}
+
+wasi_webgpu_error
+wasi_webgpu_request_device(wasm_exec_env_t exec_env, void *adapter, void **device)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !adapter || !device)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, request_device,
+                         err, wasi_webgpu_ctx->backend_ctx, adapter, device);
+    return err;
+}
+
+wasi_webgpu_error
+wasi_webgpu_device_create_buffer(wasm_exec_env_t exec_env, void *device,
+                                gpu_buffer_descriptor *desc, void **buffer)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !device || !desc || !buffer)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, create_buffer,
+                         err, wasi_webgpu_ctx->backend_ctx, device, desc, buffer);
+    return err;
+}
+
+wasi_webgpu_error
+wasi_webgpu_device_create_texture(wasm_exec_env_t exec_env, void *device,
+                                 gpu_texture_descriptor *desc, void **texture)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !device || !desc || !texture)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, create_texture,
+                         err, wasi_webgpu_ctx->backend_ctx, device, desc, texture);
+    return err;
+}
+
+wasi_webgpu_error
+wasi_webgpu_device_create_shader_module(wasm_exec_env_t exec_env, void *device,
+                                      gpu_shader_module_descriptor *desc, void **shader)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !device || !desc || !shader)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, create_shader_module,
+                         err, wasi_webgpu_ctx->backend_ctx, device, desc, shader);
+    return err;
+}
+
+wasi_webgpu_error
+wasi_webgpu_device_create_command_encoder(wasm_exec_env_t exec_env, void *device,
+                                        const char *label, void **encoder)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !device || !encoder)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, create_command_encoder,
+                         err, wasi_webgpu_ctx->backend_ctx, device, label, encoder);
+    return err;
+}
+
+wasi_webgpu_error
+wasi_webgpu_device_create_render_bundle_encoder(wasm_exec_env_t exec_env, void *device,
+                                              gpu_render_bundle_encoder_descriptor *desc,
+                                              void **encoder)
+{
+    wasi_webgpu_error err = success;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(
+        wasm_runtime_get_module_inst(exec_env));
+
+    if (!wasi_webgpu_ctx || !device || !desc || !encoder)
+        return invalid_argument;
+
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, create_render_bundle_encoder,
+                         err, wasi_webgpu_ctx->backend_ctx, device, desc, encoder);
+    return err;
+}
+
+#endif /* WASM_ENABLE_WASI_WEBGPU != 0 */
+
+/* Register native functions */
 #define REG_NATIVE_FUNC(func_name, signature) \
     { #func_name, wasi_webgpu_##func_name, signature, NULL }
-/* clang-format on */
 
-static NativeSymbol native_symbols_wasi_webgpu[] = {
-    // REG_NATIVE_FUNC(load, "(*ii*)i"),
-    // REG_NATIVE_FUNC(init_execution_context, "(i*)i"),
-    // REG_NATIVE_FUNC(set_input, "(ii*)i"),
-    // REG_NATIVE_FUNC(compute, "(i)i"),
-    // REG_NATIVE_FUNC(get_output, "(ii**)i"),
+static NativeSymbol native_symbols[] = {
+    REG_NATIVE_FUNC(get_gpu, "(**)i"),
+    REG_NATIVE_FUNC(request_adapter, "(***)i"),
+    REG_NATIVE_FUNC(request_device, "(***)i"),
+    REG_NATIVE_FUNC(device_create_buffer, "(****)i"),
+    REG_NATIVE_FUNC(device_create_texture, "(****)i"),
+    REG_NATIVE_FUNC(device_create_shader_module, "(****)i"),
+    REG_NATIVE_FUNC(device_create_command_encoder, "(***)i"),
+    REG_NATIVE_FUNC(device_create_render_bundle_encoder, "(****)i"),
 };
 
 uint32_t
 get_wasi_webgpu_export_apis(NativeSymbol **p_native_symbols)
 {
-    *p_native_symbols = native_symbols_wasi_webgpu;
-    return sizeof(native_symbols_wasi_webgpu) / sizeof(NativeSymbol);
+    *p_native_symbols = native_symbols;
+    return sizeof(native_symbols) / sizeof(NativeSymbol);
 }
