@@ -53,12 +53,10 @@ if(WAMR_BUILD_WASI_WEBGPU_WGPU EQUAL 1)
   if(APPLE)
     set_target_properties(wasi_webgpu_wgpunative PROPERTIES
       INSTALL_RPATH "@loader_path"
-      BUILD_WITH_INSTALL_RPATH TRUE
     )
   elseif(UNIX)
     set_target_properties(wasi_webgpu_wgpunative PROPERTIES
       INSTALL_RPATH "$ORIGIN"
-      BUILD_WITH_INSTALL_RPATH TRUE
       LINK_FLAGS "-Wl,-rpath,$ORIGIN"
     )
   endif()
