@@ -108,6 +108,10 @@ if (WAMR_BUILD_WASI_NN EQUAL 1)
     include (${IWASM_DIR}/libraries/wasi-nn/cmake/wasi_nn.cmake)
 endif ()
 
+if (WAMR_BUILD_WASI_WEBGPU EQUAL 1)
+    include (${IWASM_DIR}/libraries/wasi-webgpu/cmake/wasi_webgpu.cmake)
+endif ()
+
 if (WAMR_BUILD_LIB_PTHREAD EQUAL 1)
     if (WAMR_BUILD_PLATFORM STREQUAL "windows")
         set (WAMR_BUILD_LIB_PTHREAD_SEMAPHORE 0)
@@ -194,6 +198,7 @@ set (source_all
     ${LIBC_BUILTIN_SOURCE}
     ${LIBC_WASI_SOURCE}
     ${WASI_NN_SOURCES}
+    ${WASI_WEBGPU_SOURCES}
     ${IWASM_COMMON_SOURCE}
     ${IWASM_INTERP_SOURCE}
     ${IWASM_AOT_SOURCE}

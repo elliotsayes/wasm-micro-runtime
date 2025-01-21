@@ -165,6 +165,10 @@
 #define WASM_ENABLE_WASI_EPHEMERAL_NN 0
 #endif
 
+#ifndef WASM_ENABLE_WASI_WEBGPU
+#define WASM_ENABLE_WASI_WEBGPU 0
+#endif
+
 /* Default disable libc emcc */
 #ifndef WASM_ENABLE_LIBC_EMCC
 #define WASM_ENABLE_LIBC_EMCC 0

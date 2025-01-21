@@ -18,6 +18,9 @@
 #if WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0
 #include "wasi_nn_host.h"
 #endif
+#if WASM_ENABLE_WASI_WEBGPU != 0
+#include "wasi_webgpu_host.h"
+#endif
 
 static NativeSymbolsList g_native_symbols_list = NULL;
 
@@ -485,7 +488,8 @@ wasm_native_init()
     || WASM_ENABLE_LIB_RATS != 0 || WASM_ENABLE_WASI_NN != 0             \
     || WASM_ENABLE_APP_FRAMEWORK != 0 || WASM_ENABLE_LIBC_WASI != 0      \
     || WASM_ENABLE_LIB_PTHREAD != 0 || WASM_ENABLE_LIB_WASI_THREADS != 0 \
-    || WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0
+    || WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0    \
+    || WASM_ENABLE_WASI_WEBGPU != 0
     NativeSymbol *native_symbols;
     uint32 n_native_symbols;
 #endif
@@ -595,6 +599,14 @@ wasm_native_init()
         goto fail;
 #endif /* WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
 
+#if WASM_ENABLE_WASI_WEBGPU != 0
+    n_native_symbols = get_wasi_webgpu_export_apis(&native_symbols);
+    if (n_native_symbols > 0
+        && !wasm_native_register_natives("wasi_webgpu", native_symbols,
+                                         n_native_symbols))
+        goto fail;
+#endif
+
 #if WASM_ENABLE_QUICK_AOT_ENTRY != 0
     if (!quick_aot_entry_init()) {
 #if WASM_ENABLE_SPEC_TEST != 0 || WASM_ENABLE_LIBC_BUILTIN != 0          \
@@ -602,7 +614,8 @@ wasm_native_init()
     || WASM_ENABLE_LIB_RATS != 0 || WASM_ENABLE_WASI_NN != 0             \
     || WASM_ENABLE_APP_FRAMEWORK != 0 || WASM_ENABLE_LIBC_WASI != 0      \
     || WASM_ENABLE_LIB_PTHREAD != 0 || WASM_ENABLE_LIB_WASI_THREADS != 0 \
-    || WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0
+    || WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0    \
+    || WASM_ENABLE_WASI_WEBGPU != 0
         goto fail;
 #else
         return false;
@@ -616,7 +629,8 @@ wasm_native_init()
     || WASM_ENABLE_LIB_RATS != 0 || WASM_ENABLE_WASI_NN != 0             \
     || WASM_ENABLE_APP_FRAMEWORK != 0 || WASM_ENABLE_LIBC_WASI != 0      \
     || WASM_ENABLE_LIB_PTHREAD != 0 || WASM_ENABLE_LIB_WASI_THREADS != 0 \
-    || WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0
+    || WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0    \
+    || WASM_ENABLE_WASI_WEBGPU != 0
 fail:
     wasm_native_destroy();
     return false;
@@ -645,6 +659,10 @@ wasm_native_destroy()
 
 #if WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0
     wasi_nn_destroy();
+#endif
+
+#if WASM_ENABLE_WASI_WEBGPU != 0
+    wasi_webgpu_destroy();
 #endif
 
     node = g_native_symbols_list;

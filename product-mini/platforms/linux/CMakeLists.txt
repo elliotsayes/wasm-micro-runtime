@@ -129,6 +129,12 @@ if (WAMR_BUILD_WASI_NN EQUAL 1)
   set (WAMR_BUILD_SHARED 1)
 endif ()
 
+# if enable wasi-webgpu, both wasi-webgpu-backends and iwasm
+# need to use same WAMR (dynamic) libraries
+if (WAMR_BUILD_WASI_WEBGPU EQUAL 1)
+  set (WAMR_BUILD_SHARED 1)
+endif ()
+
 if (NOT DEFINED WAMR_BUILD_SHARED)
   set (WAMR_BUILD_SHARED 0)
 elseif (WAMR_BUILD_SHARED EQUAL 1)
