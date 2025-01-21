@@ -12,18 +12,18 @@
 #include <stdint.h>
 #include <dlfcn.h>
 
-#include "wasi_nn_private.h"
-#include "utils/wasi_nn_app_native.h"
+#include "wasi_webgpu_private.h"
+#include "utils/wasi_webgpu_app_native.h"
 #include "utils/logger.h"
 
 #include "bh_platform.h"
-#include "wasi_nn_types.h"
+#include "wasi_webgpu_types.h"
 #include "wasm_export.h"
 
 #define HASHMAP_INITIAL_SIZE 20
-#define TFLITE_BACKEND_LIB "libwasi_nn_tflite.so"
-#define OPENVINO_BACKEND_LIB "libwasi_nn_openvino.so"
-#define LLAMACPP_BACKEND_LIB "libwasi_nn_llamacpp.so"
+#define TFLITE_BACKEND_LIB "libwasi_webgpu_tflite.so"
+#define OPENVINO_BACKEND_LIB "libwasi_webgpu_openvino.so"
+#define LLAMACPP_BACKEND_LIB "libwasi_webgpu_llamacpp.so"
 
 /* Global variables */
 struct backends_api_functions {
@@ -31,7 +31,7 @@ struct backends_api_functions {
     api_function functions;
 } lookup[autodetect + 1] = { 0 };
 
-#define call_wasi_nn_func(backend_encoding, func, wasi_error, ...)         \
+#define call_wasi_webgpu_func(backend_encoding, func, wasi_error, ...)         \
     do {                                                                   \
         wasi_error = lookup[backend_encoding].functions.func(__VA_ARGS__); \
         if (wasi_error != success)                                         \
@@ -72,39 +72,39 @@ key_destroy_func(void *key1)
 }
 
 static void
-wasi_nn_ctx_destroy(WASINNContext *wasi_nn_ctx)
+wasi_webgpu_ctx_destroy(WASIWEBGPUContext *wasi_webgpu_ctx)
 {
-    NN_DBG_PRINTF("[WASI NN] DEINIT...");
+    NN_DBG_PRINTF("[WASI WEBGPU] DEINIT...");
 
-    if (wasi_nn_ctx == NULL) {
+    if (wasi_webgpu_ctx == NULL) {
         NN_ERR_PRINTF(
-            "Error when deallocating memory. WASI-NN context is NULL");
+            "Error when deallocating memory. WASI-WEBGPU context is NULL");
         return;
     }
-    NN_DBG_PRINTF("Freeing wasi-nn");
-    NN_DBG_PRINTF("-> is_model_loaded: %d", wasi_nn_ctx->is_model_loaded);
-    NN_DBG_PRINTF("-> current_encoding: %d", wasi_nn_ctx->backend);
+    NN_DBG_PRINTF("Freeing wasi-webgpu");
+    NN_DBG_PRINTF("-> is_model_loaded: %d", wasi_webgpu_ctx->is_model_loaded);
+    NN_DBG_PRINTF("-> current_encoding: %d", wasi_webgpu_ctx->backend);
 
     /* deinit() the backend */
-    wasi_nn_error res;
-    call_wasi_nn_func(wasi_nn_ctx->backend, deinit, res,
-                      wasi_nn_ctx->backend_ctx);
+    wasi_webgpu_error res;
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, deinit, res,
+                      wasi_webgpu_ctx->backend_ctx);
 
-    wasm_runtime_free(wasi_nn_ctx);
+    wasm_runtime_free(wasi_webgpu_ctx);
 }
 
 static void
 value_destroy_func(void *value)
 {
-    wasi_nn_ctx_destroy((WASINNContext *)value);
+    wasi_webgpu_ctx_destroy((WASIWEBGPUContext *)value);
 }
 
 bool
-wasi_nn_initialize()
+wasi_webgpu_initialize()
 {
-    NN_DBG_PRINTF("[WASI NN General] Initializing wasi-nn");
+    NN_DBG_PRINTF("[WASI WEBGPU General] Initializing wasi-webgpu");
 
-    // hashmap { instance: wasi_nn_ctx }
+    // hashmap { instance: wasi_webgpu_ctx }
     hashmap = bh_hash_map_create(HASHMAP_INITIAL_SIZE, true, hash_func,
                                  key_equal_func, key_destroy_func,
                                  value_destroy_func);
@@ -116,47 +116,47 @@ wasi_nn_initialize()
     return true;
 }
 
-static WASINNContext *
-wasi_nn_initialize_context()
+static WASIWEBGPUContext *
+wasi_webgpu_initialize_context()
 {
-    NN_DBG_PRINTF("[WASI NN] INIT...");
+    NN_DBG_PRINTF("[WASI WEBGPU] INIT...");
 
-    WASINNContext *wasi_nn_ctx =
-        (WASINNContext *)wasm_runtime_malloc(sizeof(WASINNContext));
-    if (wasi_nn_ctx == NULL) {
-        NN_ERR_PRINTF("Error when allocating memory for WASI-NN context");
+    WASIWEBGPUContext *wasi_webgpu_ctx =
+        (WASIWEBGPUContext *)wasm_runtime_malloc(sizeof(WASIWEBGPUContext));
+    if (wasi_webgpu_ctx == NULL) {
+        NN_ERR_PRINTF("Error when allocating memory for WASI-WEBGPU context");
         return NULL;
     }
 
-    memset(wasi_nn_ctx, 0, sizeof(WASINNContext));
-    return wasi_nn_ctx;
+    memset(wasi_webgpu_ctx, 0, sizeof(WASIWEBGPUContext));
+    return wasi_webgpu_ctx;
 }
 
-/* Get wasi-nn context from module instance */
-static WASINNContext *
-wasm_runtime_get_wasi_nn_ctx(wasm_module_inst_t instance)
+/* Get wasi-webgpu context from module instance */
+static WASIWEBGPUContext *
+wasm_runtime_get_wasi_webgpu_ctx(wasm_module_inst_t instance)
 {
-    WASINNContext *wasi_nn_ctx =
-        (WASINNContext *)bh_hash_map_find(hashmap, (void *)instance);
-    if (wasi_nn_ctx == NULL) {
-        wasi_nn_ctx = wasi_nn_initialize_context();
-        if (wasi_nn_ctx == NULL)
+    WASIWEBGPUContext *wasi_webgpu_ctx =
+        (WASIWEBGPUContext *)bh_hash_map_find(hashmap, (void *)instance);
+    if (wasi_webgpu_ctx == NULL) {
+        wasi_webgpu_ctx = wasi_webgpu_initialize_context();
+        if (wasi_webgpu_ctx == NULL)
             return NULL;
 
         bool ok =
-            bh_hash_map_insert(hashmap, (void *)instance, (void *)wasi_nn_ctx);
+            bh_hash_map_insert(hashmap, (void *)instance, (void *)wasi_webgpu_ctx);
         if (!ok) {
             NN_ERR_PRINTF("Error while storing context");
-            wasi_nn_ctx_destroy(wasi_nn_ctx);
+            wasi_webgpu_ctx_destroy(wasi_webgpu_ctx);
             return NULL;
         }
     }
 
-    return wasi_nn_ctx;
+    return wasi_webgpu_ctx;
 }
 
 void
-wasi_nn_destroy()
+wasi_webgpu_destroy()
 {
     // destroy hashmap will destroy keys and values
     bh_hash_map_destroy(hashmap);
@@ -173,10 +173,10 @@ wasi_nn_destroy()
 }
 
 /* Utils */
-static wasi_nn_error
-is_model_initialized(WASINNContext *wasi_nn_ctx)
+static wasi_webgpu_error
+is_model_initialized(WASIWEBGPUContext *wasi_webgpu_ctx)
 {
-    if (!wasi_nn_ctx->is_model_loaded) {
+    if (!wasi_webgpu_ctx->is_model_loaded) {
         NN_ERR_PRINTF("Model not initialized.");
         return runtime_error;
     }
@@ -368,27 +368,27 @@ detect_and_load_backend(graph_encoding backend_hint,
     return prepare_backend(backend_lib_name, backends + backend_hint);
 }
 
-/* WASI-NN implementation */
+/* WASI-WEBGPU implementation */
 
 #if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-wasi_nn_error
-wasi_nn_load(wasm_exec_env_t exec_env, graph_builder_wasm *builder,
+wasi_webgpu_error
+wasi_webgpu_load(wasm_exec_env_t exec_env, graph_builder_wasm *builder,
              uint32_t builder_wasm_size, graph_encoding encoding,
              execution_target target, graph *g)
 #else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-wasi_nn_error
-wasi_nn_load(wasm_exec_env_t exec_env, graph_builder_array_wasm *builder,
+wasi_webgpu_error
+wasi_webgpu_load(wasm_exec_env_t exec_env, graph_builder_array_wasm *builder,
              graph_encoding encoding, execution_target target, graph *g)
 #endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
 {
-    NN_DBG_PRINTF("[WASI NN] LOAD [encoding=%d, target=%d]...", encoding,
+    NN_DBG_PRINTF("[WASI WEBGPU] LOAD [encoding=%d, target=%d]...", encoding,
                   target);
 
     wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
     if (!instance)
         return runtime_error;
 
-    wasi_nn_error res;
+    wasi_webgpu_error res;
     graph_builder_array builder_native = { 0 };
 #if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
     if (success
@@ -416,21 +416,21 @@ wasi_nn_load(wasm_exec_env_t exec_env, graph_builder_array_wasm *builder,
         goto fail;
     }
 
-    WASINNContext *wasi_nn_ctx = wasm_runtime_get_wasi_nn_ctx(instance);
-    wasi_nn_ctx->backend = loaded_backend;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
+    wasi_webgpu_ctx->backend = loaded_backend;
 
     /* init() the backend */
-    call_wasi_nn_func(wasi_nn_ctx->backend, init, res,
-                      &wasi_nn_ctx->backend_ctx);
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init, res,
+                      &wasi_webgpu_ctx->backend_ctx);
     if (res != success)
         goto fail;
 
-    call_wasi_nn_func(wasi_nn_ctx->backend, load, res, wasi_nn_ctx->backend_ctx,
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, load, res, wasi_webgpu_ctx->backend_ctx,
                       &builder_native, encoding, target, g);
     if (res != success)
         goto fail;
 
-    wasi_nn_ctx->is_model_loaded = true;
+    wasi_webgpu_ctx->is_model_loaded = true;
 
 fail:
     // XXX: Free intermediate structure pointers
@@ -440,8 +440,8 @@ fail:
     return res;
 }
 
-wasi_nn_error
-wasi_nn_load_by_name(wasm_exec_env_t exec_env, char *name, uint32_t name_len,
+wasi_webgpu_error
+wasi_webgpu_load_by_name(wasm_exec_env_t exec_env, char *name, uint32_t name_len,
                      graph *g)
 {
     wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
@@ -465,7 +465,7 @@ wasi_nn_load_by_name(wasm_exec_env_t exec_env, char *name, uint32_t name_len,
         return invalid_argument;
     }
 
-    NN_DBG_PRINTF("[WASI NN] LOAD_BY_NAME %s...", name);
+    NN_DBG_PRINTF("[WASI WEBGPU] LOAD_BY_NAME %s...", name);
 
     graph_encoding loaded_backend = autodetect;
     if (!detect_and_load_backend(autodetect, lookup, &loaded_backend)) {
@@ -473,28 +473,28 @@ wasi_nn_load_by_name(wasm_exec_env_t exec_env, char *name, uint32_t name_len,
         return invalid_encoding;
     }
 
-    WASINNContext *wasi_nn_ctx = wasm_runtime_get_wasi_nn_ctx(instance);
-    wasi_nn_ctx->backend = loaded_backend;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
+    wasi_webgpu_ctx->backend = loaded_backend;
 
-    wasi_nn_error res;
+    wasi_webgpu_error res;
     /* init() the backend */
-    call_wasi_nn_func(wasi_nn_ctx->backend, init, res,
-                      &wasi_nn_ctx->backend_ctx);
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init, res,
+                      &wasi_webgpu_ctx->backend_ctx);
     if (res != success)
         return res;
 
-    call_wasi_nn_func(wasi_nn_ctx->backend, load_by_name, res,
-                      wasi_nn_ctx->backend_ctx, name, name_len, g);
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, load_by_name, res,
+                      wasi_webgpu_ctx->backend_ctx, name, name_len, g);
     if (res != success)
         return res;
 
-    wasi_nn_ctx->backend = loaded_backend;
-    wasi_nn_ctx->is_model_loaded = true;
+    wasi_webgpu_ctx->backend = loaded_backend;
+    wasi_webgpu_ctx->is_model_loaded = true;
     return success;
 }
 
-wasi_nn_error
-wasi_nn_load_by_name_with_config(wasm_exec_env_t exec_env, char *name,
+wasi_webgpu_error
+wasi_webgpu_load_by_name_with_config(wasm_exec_env_t exec_env, char *name,
                                  int32_t name_len, char *config,
                                  int32_t config_len, graph *g)
 {
@@ -524,7 +524,7 @@ wasi_nn_load_by_name_with_config(wasm_exec_env_t exec_env, char *name,
         return invalid_argument;
     }
 
-    NN_DBG_PRINTF("[WASI NN] LOAD_BY_NAME_WITH_CONFIG %s %s...", name, config);
+    NN_DBG_PRINTF("[WASI WEBGPU] LOAD_BY_NAME_WITH_CONFIG %s %s...", name, config);
 
     graph_encoding loaded_backend = autodetect;
     if (!detect_and_load_backend(autodetect, lookup, &loaded_backend)) {
@@ -532,42 +532,42 @@ wasi_nn_load_by_name_with_config(wasm_exec_env_t exec_env, char *name,
         return invalid_encoding;
     }
 
-    WASINNContext *wasi_nn_ctx = wasm_runtime_get_wasi_nn_ctx(instance);
-    wasi_nn_ctx->backend = loaded_backend;
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
+    wasi_webgpu_ctx->backend = loaded_backend;
 
-    wasi_nn_error res;
+    wasi_webgpu_error res;
     /* init() the backend */
-    call_wasi_nn_func(wasi_nn_ctx->backend, init, res,
-                      &wasi_nn_ctx->backend_ctx);
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init, res,
+                      &wasi_webgpu_ctx->backend_ctx);
     if (res != success)
         return res;
 
-    call_wasi_nn_func(wasi_nn_ctx->backend, load_by_name_with_config, res,
-                      wasi_nn_ctx->backend_ctx, name, name_len, config,
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, load_by_name_with_config, res,
+                      wasi_webgpu_ctx->backend_ctx, name, name_len, config,
                       config_len, g);
     if (res != success)
         return res;
 
-    wasi_nn_ctx->backend = loaded_backend;
-    wasi_nn_ctx->is_model_loaded = true;
+    wasi_webgpu_ctx->backend = loaded_backend;
+    wasi_webgpu_ctx->is_model_loaded = true;
     return success;
 }
 
-wasi_nn_error
-wasi_nn_init_execution_context(wasm_exec_env_t exec_env, graph g,
+wasi_webgpu_error
+wasi_webgpu_init_execution_context(wasm_exec_env_t exec_env, graph g,
                                graph_execution_context *ctx)
 {
-    NN_DBG_PRINTF("[WASI NN] INIT_EXECUTION_CONTEXT...");
+    NN_DBG_PRINTF("[WASI WEBGPU] INIT_EXECUTION_CONTEXT...");
 
     wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
     if (!instance) {
         return runtime_error;
     }
 
-    WASINNContext *wasi_nn_ctx = wasm_runtime_get_wasi_nn_ctx(instance);
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
 
-    wasi_nn_error res;
-    if (success != (res = is_model_initialized(wasi_nn_ctx)))
+    wasi_webgpu_error res;
+    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
         return res;
 
     if (!wasm_runtime_validate_native_addr(
@@ -576,26 +576,26 @@ wasi_nn_init_execution_context(wasm_exec_env_t exec_env, graph g,
         return invalid_argument;
     }
 
-    call_wasi_nn_func(wasi_nn_ctx->backend, init_execution_context, res,
-                      wasi_nn_ctx->backend_ctx, g, ctx);
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, init_execution_context, res,
+                      wasi_webgpu_ctx->backend_ctx, g, ctx);
     return res;
 }
 
-wasi_nn_error
-wasi_nn_set_input(wasm_exec_env_t exec_env, graph_execution_context ctx,
+wasi_webgpu_error
+wasi_webgpu_set_input(wasm_exec_env_t exec_env, graph_execution_context ctx,
                   uint32_t index, tensor_wasm *input_tensor)
 {
-    NN_DBG_PRINTF("[WASI NN] SET_INPUT [ctx=%d, index=%d]...", ctx, index);
+    NN_DBG_PRINTF("[WASI WEBGPU] SET_INPUT [ctx=%d, index=%d]...", ctx, index);
 
     wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
     if (!instance) {
         return runtime_error;
     }
 
-    WASINNContext *wasi_nn_ctx = wasm_runtime_get_wasi_nn_ctx(instance);
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
 
-    wasi_nn_error res;
-    if (success != (res = is_model_initialized(wasi_nn_ctx)))
+    wasi_webgpu_error res;
+    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
         return res;
 
     tensor input_tensor_native = { 0 };
@@ -604,8 +604,8 @@ wasi_nn_set_input(wasm_exec_env_t exec_env, graph_execution_context ctx,
                                     &input_tensor_native)))
         return res;
 
-    call_wasi_nn_func(wasi_nn_ctx->backend, set_input, res,
-                      wasi_nn_ctx->backend_ctx, ctx, index,
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, set_input, res,
+                      wasi_webgpu_ctx->backend_ctx, ctx, index,
                       &input_tensor_native);
     // XXX: Free intermediate structure pointers
     if (input_tensor_native.dimensions)
@@ -614,50 +614,50 @@ wasi_nn_set_input(wasm_exec_env_t exec_env, graph_execution_context ctx,
     return res;
 }
 
-wasi_nn_error
-wasi_nn_compute(wasm_exec_env_t exec_env, graph_execution_context ctx)
+wasi_webgpu_error
+wasi_webgpu_compute(wasm_exec_env_t exec_env, graph_execution_context ctx)
 {
-    NN_DBG_PRINTF("[WASI NN] COMPUTE [ctx=%d]...", ctx);
+    NN_DBG_PRINTF("[WASI WEBGPU] COMPUTE [ctx=%d]...", ctx);
 
     wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
     if (!instance) {
         return runtime_error;
     }
 
-    WASINNContext *wasi_nn_ctx = wasm_runtime_get_wasi_nn_ctx(instance);
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
 
-    wasi_nn_error res;
-    if (success != (res = is_model_initialized(wasi_nn_ctx)))
+    wasi_webgpu_error res;
+    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
         return res;
 
-    call_wasi_nn_func(wasi_nn_ctx->backend, compute, res,
-                      wasi_nn_ctx->backend_ctx, ctx);
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, compute, res,
+                      wasi_webgpu_ctx->backend_ctx, ctx);
     return res;
 }
 
 #if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-wasi_nn_error
-wasi_nn_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
+wasi_webgpu_error
+wasi_webgpu_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
                    uint32_t index, tensor_data output_tensor,
                    uint32_t output_tensor_len, uint32_t *output_tensor_size)
 #else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-wasi_nn_error
-wasi_nn_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
+wasi_webgpu_error
+wasi_webgpu_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
                    uint32_t index, tensor_data output_tensor,
                    uint32_t *output_tensor_size)
 #endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
 {
-    NN_DBG_PRINTF("[WASI NN] GET_OUTPUT [ctx=%d, index=%d]...", ctx, index);
+    NN_DBG_PRINTF("[WASI WEBGPU] GET_OUTPUT [ctx=%d, index=%d]...", ctx, index);
 
     wasm_module_inst_t instance = wasm_runtime_get_module_inst(exec_env);
     if (!instance) {
         return runtime_error;
     }
 
-    WASINNContext *wasi_nn_ctx = wasm_runtime_get_wasi_nn_ctx(instance);
+    WASIWEBGPUContext *wasi_webgpu_ctx = wasm_runtime_get_wasi_webgpu_ctx(instance);
 
-    wasi_nn_error res;
-    if (success != (res = is_model_initialized(wasi_nn_ctx)))
+    wasi_webgpu_error res;
+    if (success != (res = is_model_initialized(wasi_webgpu_ctx)))
         return res;
 
     if (!wasm_runtime_validate_native_addr(instance, output_tensor_size,
@@ -667,26 +667,26 @@ wasi_nn_get_output(wasm_exec_env_t exec_env, graph_execution_context ctx,
     }
 
 #if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
-    call_wasi_nn_func(wasi_nn_ctx->backend, get_output, res,
-                      wasi_nn_ctx->backend_ctx, ctx, index, output_tensor,
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, get_output, res,
+                      wasi_webgpu_ctx->backend_ctx, ctx, index, output_tensor,
                       &output_tensor_len);
     *output_tensor_size = output_tensor_len;
 #else  /* WASM_ENABLE_WASI_EPHEMERAL_NN == 0 */
-    call_wasi_nn_func(wasi_nn_ctx->backend, get_output, res,
-                      wasi_nn_ctx->backend_ctx, ctx, index, output_tensor,
+    call_wasi_webgpu_func(wasi_webgpu_ctx->backend, get_output, res,
+                      wasi_webgpu_ctx->backend_ctx, ctx, index, output_tensor,
                       output_tensor_size);
 #endif /* WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
     return res;
 }
 
-/* Register WASI-NN in WAMR */
+/* Register WASI-WEBGPU in WAMR */
 
 /* clang-format off */
 #define REG_NATIVE_FUNC(func_name, signature) \
-    { #func_name, wasi_nn_##func_name, signature, NULL }
+    { #func_name, wasi_webgpu_##func_name, signature, NULL }
 /* clang-format on */
 
-static NativeSymbol native_symbols_wasi_nn[] = {
+static NativeSymbol native_symbols_wasi_webgpu[] = {
 #if WASM_ENABLE_WASI_EPHEMERAL_NN != 0
     REG_NATIVE_FUNC(load, "(*iii*)i"),
     REG_NATIVE_FUNC(load_by_name, "(*i*)i"),
@@ -705,8 +705,8 @@ static NativeSymbol native_symbols_wasi_nn[] = {
 };
 
 uint32_t
-get_wasi_nn_export_apis(NativeSymbol **p_native_symbols)
+get_wasi_webgpu_export_apis(NativeSymbol **p_native_symbols)
 {
-    *p_native_symbols = native_symbols_wasi_nn;
-    return sizeof(native_symbols_wasi_nn) / sizeof(NativeSymbol);
+    *p_native_symbols = native_symbols_wasi_webgpu;
+    return sizeof(native_symbols_wasi_webgpu) / sizeof(NativeSymbol);
 }

@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#ifndef WASI_NN_LOGGER_H
-#define WASI_NN_LOGGER_H
+#ifndef WASI_WEBGPU_LOGGER_H
+#define WASI_WEBGPU_LOGGER_H
 
 #include <stdio.h>
 #include <string.h>

@@ -2,7 +2,7 @@
  * Copyright (C) 2019 Intel Corporation.  All rights reserved.
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
-#include "wasi_nn_types.h"
+#include "wasi_webgpu_types.h"
 #include "utils/logger.h"
 #include "llama.h"
 #include "ggml.h"
@@ -15,9 +15,9 @@ extern char const *LLAMA_COMPILER;
 extern char const *LLAMA_BUILD_TARGET;
 
 // compatable with WasmEdge
-// https://github.com/second-state/WasmEdge-WASINN-examples/blob/master/wasmedge-ggml/README.md#parameters
-// https://github.com/WasmEdge/WasmEdge/blob/master/plugins/wasi_nn/ggml.cpp
-struct wasi_nn_llama_config {
+// https://github.com/second-state/WasmEdge-WASIWEBGPU-examples/blob/master/wasmedge-ggml/README.md#parameters
+// https://github.com/WasmEdge/WasmEdge/blob/master/plugins/wasi_webgpu/ggml.cpp
+struct wasi_webgpu_llama_config {
     // Backend(plugin in WasmEdge) parameters:
     bool enable_log;
     bool enable_debug_log;
@@ -63,11 +63,11 @@ struct LlamaContext {
     size_t prompt_len;
     llama_token *generation;
     size_t generation_len;
-    struct wasi_nn_llama_config config;
+    struct wasi_webgpu_llama_config config;
 };
 
 static void
-wasm_edge_llama_default_configuration(struct wasi_nn_llama_config *output)
+wasm_edge_llama_default_configuration(struct wasi_webgpu_llama_config *output)
 {
     output->enable_log = false;
     output->enable_debug_log = false;
@@ -99,7 +99,7 @@ wasm_edge_llama_default_configuration(struct wasi_nn_llama_config *output)
 
 static void
 wasm_edge_llama_apply_configuration(const char *config_json,
-                                    struct wasi_nn_llama_config *output)
+                                    struct wasi_webgpu_llama_config *output)
 {
     cJSON *root = cJSON_Parse(config_json);
     if (root == NULL) {
@@ -163,8 +163,8 @@ wasm_edge_llama_apply_configuration(const char *config_json,
 }
 
 static struct llama_model_params
-llama_model_params_from_wasi_nn_llama_config(
-    struct wasi_nn_llama_config *config)
+llama_model_params_from_wasi_webgpu_llama_config(
+    struct wasi_webgpu_llama_config *config)
 {
     struct llama_model_params result = llama_model_default_params();
 
@@ -177,8 +177,8 @@ llama_model_params_from_wasi_nn_llama_config(
 }
 
 static struct llama_context_params
-llama_context_params_from_wasi_nn_llama_config(
-    struct wasi_nn_llama_config *config)
+llama_context_params_from_wasi_webgpu_llama_config(
+    struct wasi_webgpu_llama_config *config)
 {
     struct llama_context_params result = llama_context_default_params();
 
@@ -240,7 +240,7 @@ llama_build_output_metadata(const struct LlamaContext *backend_ctx,
              LLAMA_BUILD_NUMBER, LLAMA_COMMIT);
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 init_backend(void **ctx)
 {
     struct LlamaContext *backend_ctx = calloc(1, sizeof(struct LlamaContext));
@@ -264,7 +264,7 @@ init_backend(void **ctx)
     return success;
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 deinit_backend(void *ctx)
 {
     struct LlamaContext *backend_ctx = (struct LlamaContext *)ctx;
@@ -290,14 +290,14 @@ deinit_backend(void *ctx)
     return success;
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 load(void *ctx, graph_builder_array *builder, graph_encoding encoding,
      execution_target target, graph *g)
 {
     return unsupported_operation;
 }
 
-static wasi_nn_error
+static wasi_webgpu_error
 __load_by_name_with_configuration(void *ctx, const char *filename, graph *g)
 {
     struct LlamaContext *backend_ctx = (struct LlamaContext *)ctx;
@@ -305,7 +305,7 @@ __load_by_name_with_configuration(void *ctx, const char *filename, graph *g)
     // make sure backend_ctx->config is initialized
 
     struct llama_model_params model_params =
-        llama_model_params_from_wasi_nn_llama_config(&backend_ctx->config);
+        llama_model_params_from_wasi_webgpu_llama_config(&backend_ctx->config);
     struct llama_model *model =
         llama_load_model_from_file(filename, model_params);
     if (model == NULL) {
@@ -324,7 +324,7 @@ __load_by_name_with_configuration(void *ctx, const char *filename, graph *g)
     return success;
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 load_by_name(void *ctx, const char *filename, uint32_t filename_len, graph *g)
 {
     struct LlamaContext *backend_ctx = (struct LlamaContext *)ctx;
@@ -334,7 +334,7 @@ load_by_name(void *ctx, const char *filename, uint32_t filename_len, graph *g)
     return __load_by_name_with_configuration(ctx, filename, g);
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 load_by_name_with_config(void *ctx, const char *filename, uint32_t filename_len,
                          const char *config, uint32_t config_len, graph *g)
 {
@@ -355,13 +355,13 @@ load_by_name_with_config(void *ctx, const char *filename, uint32_t filename_len,
 
 // It is assumed that model params shouldn't be changed in Config stage.
 // We only load the model once in the Load stage.
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 init_execution_context(void *ctx, graph g, graph_execution_context *exec_ctx)
 {
     struct LlamaContext *backend_ctx = (struct LlamaContext *)ctx;
 
     struct llama_context_params ctx_params =
-        llama_context_params_from_wasi_nn_llama_config(&backend_ctx->config);
+        llama_context_params_from_wasi_webgpu_llama_config(&backend_ctx->config);
     struct llama_context *llama_ctx =
         llama_new_context_with_model(backend_ctx->model, ctx_params);
     if (llama_ctx == NULL) {
@@ -376,13 +376,13 @@ init_execution_context(void *ctx, graph g, graph_execution_context *exec_ctx)
     return success;
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 set_input(void *ctx, graph_execution_context exec_ctx, uint32_t index,
-          tensor *wasi_nn_tensor)
+          tensor *wasi_webgpu_tensor)
 {
     struct LlamaContext *backend_ctx = (struct LlamaContext *)ctx;
     // tensor->data is the prompt string. ends with \0
-    char *prompt_text = (char *)wasi_nn_tensor->data;
+    char *prompt_text = (char *)wasi_webgpu_tensor->data;
 
 #ifndef NDEBUG
     NN_DBG_PRINTF("--------------------------------------------------");
@@ -424,11 +424,11 @@ set_input(void *ctx, graph_execution_context exec_ctx, uint32_t index,
     return success;
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 compute(void *ctx, graph_execution_context exec_ctx)
 {
     struct LlamaContext *backend_ctx = (struct LlamaContext *)ctx;
-    wasi_nn_error ret = runtime_error;
+    wasi_webgpu_error ret = runtime_error;
 
     // reset the generation buffer
     if (backend_ctx->generation == NULL) {
@@ -547,7 +547,7 @@ fail:
     return ret;
 }
 
-__attribute__((visibility("default"))) wasi_nn_error
+__attribute__((visibility("default"))) wasi_webgpu_error
 get_output(void *ctx, graph_execution_context exec_ctx, uint32_t index,
            tensor_data output_tensor, uint32_t *output_tensor_size)
 {
