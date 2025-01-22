@@ -600,6 +600,9 @@ wasm_native_init()
 #endif /* WASM_ENABLE_WASI_NN != 0 || WASM_ENABLE_WASI_EPHEMERAL_NN != 0 */
 
 #if WASM_ENABLE_WASI_WEBGPU != 0
+    if (!wasi_webgpu_initialize())
+        goto fail;
+
     n_native_symbols = get_wasi_webgpu_export_apis(&native_symbols);
     if (n_native_symbols > 0
         && !wasm_native_register_natives("wasi_webgpu", native_symbols,
